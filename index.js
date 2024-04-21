@@ -15,6 +15,7 @@ const app = express()
 app.use(express.static('assets'))
 app.use(compression())
 app.set('view engine', 'pug')
+app.set('trust proxy', true)
 
 app.get('/', (req, res) => {
   const site = config.app.site || `${req.protocol}://${req.get('host')}`
@@ -23,7 +24,10 @@ app.get('/', (req, res) => {
 
 // get the image
 app.get('/get/@:name', async (req, res) => {
-  const { name } = req.params
+  let { name } = req.params;
+  const rawName = name;
+  name = decodeURIComponent(rawName);
+
   const { theme = 'moebooru' } = req.query
   let length = PLACES
 
@@ -46,16 +50,25 @@ app.get('/get/@:name', async (req, res) => {
   const renderSvg = themify.getCountImage({ count: data.num, theme, length })
   res.send(renderSvg)
 
-  console.log(data, `theme: ${theme}`, `ref: ${req.get('Referrer') || null}`, `ua: ${req.get('User-Agent') || null}`)
+  console.log(data, `theme: ${theme}`, `ref: ${req.get('Referrer') || null}`, `ua: ${req.get('User-Agent') || null}`, `ip: ${req.ip || null}`);
+  writeToLogFile(`${formatCurrentTime()}[IMG] data: ${b64encode(data)}, theme: ${theme}, ref: ${req.get('Referrer') || null}, ua: ${b64encode(req.get('User-Agent')) || null}, ip: ${req.ip || null}`);
 })
 
 // JSON record
 app.get('/record/@:name', async (req, res) => {
-  const { name } = req.params
+  let { name } = req.params;
+  const rawName = name;
+  name = decodeURIComponent(rawName);
 
-  const data = await getCountByName(name)
+  const data = await getCountByName(name);
+  
+  res.set({
+    'Access-Control-Allow-Origin': '*'
+  });
 
-  res.json(data)
+  res.json(data);
+  console.log(data, `ref: ${req.get('Referrer') || null}`, `ua: ${req.get('User-Agent') || null}`, `ip: ${req.ip || null}`);
+  writeToLogFile(`${formatCurrentTime()}[API] data: ${b64encode(data)}, ref: ${req.get('Referrer') || null}, ua: ${b64encode(req.get('User-Agent')) || null}, ip: ${req.ip || null}`);
 })
 
 app.get('/heart-beat', (req, res) => {
@@ -75,7 +88,7 @@ let __cache_counter = {}, shouldPush = false
 
 setInterval(() => {
   shouldPush = true
-}, 1000 * 60);
+}, 1000 * 10);
 
 async function pushDB() {
   if (!shouldPush) return
@@ -122,4 +135,30 @@ async function getCountByName(name) {
     return defaultCount
 
   }
+}
+
+
+function writeToLogFile(message, logFilePath = 'access.log') {
+  fs.appendFile(logFilePath, message + '\n', (err) => {
+    if (err) {
+      console.error('Error writing to log file:', err);
+    }
+  });
+}
+
+function b64encode(str) {
+  return btoa((encodeURIComponent(str)));
+}
+
+function formatCurrentTime() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+  const formattedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+  return formattedTime;
 }

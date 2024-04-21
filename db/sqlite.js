@@ -9,7 +9,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS tb_count (
     id    INTEGER      PRIMARY KEY AUTOINCREMENT
                        NOT NULL
                        UNIQUE,
-    name  VARCHAR (32) NOT NULL
+    name  VARCHAR (1024) NOT NULL
                        UNIQUE,
     num   BIGINT       NOT NULL
                        DEFAULT (0) 
